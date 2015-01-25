@@ -7,6 +7,7 @@ __all__ = [ "Varstack" ]
 
 import logging, re, yaml
 from pprint import pprint
+from jinja2 import Template
 
 try:
     from logging import NullHandler
@@ -24,7 +25,7 @@ class Varstack:
         self.data = {}
 
     """Evaluate a stack of configuration files."""
-    def evaluate(self, variables):
+    def evaluate(self, variables, **kwargs):
         try:
             cfh = open(self.config_filename, 'r')
         except (OSError, IOError) as e:
@@ -42,7 +43,7 @@ class Varstack:
                 self.log.info('file "{0}" not found, skipping'.format(fullpath))
                 continue
             self.log.info('found file "{0}", merging'.format(fullpath))
-            self.__loadFile(fh)
+            self.__loadFile(fh, **kwargs)
             fh.close()
         rawdata = self.data
         return self.__cleanupData(rawdata)
@@ -85,8 +86,8 @@ class Varstack:
         return newdata
 
     """Load a YAML files and merge it into the existing configuration."""
-    def __loadFile(self, filehandle):
-        data = yaml.safe_load(filehandle)
+    def __loadFile(self, filehandle, **kwargs):
+        data = yaml.safe_load(Template(filehandle.read()).render(kwargs))
         self.data = self.__mergeData(self.data, data, 'merge', '<root>')
 
     """Merge two configuration sets."""
