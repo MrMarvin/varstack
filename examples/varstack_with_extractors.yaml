@@ -1,0 +1,7 @@
+---
+extractors:
+    - extract_from_id
+    - /etc/varstack/absolute_path_extractor
+stack:
+    - defaults
+    - tld/%{_tld}

@@ -24,7 +24,7 @@ class TestVarstack(object):
         assert_in('not found, skipping', str(log))
 
     def test_evaluate_merges_and_replaces(self):
-        v = Varstack(os.path.dirname(__file__)+"/../examples/varstack_no_datadir.yaml")
+        v = Varstack(os.path.dirname(__file__)+"/../examples/varstack_no_datadir.yaml", {})
         evaluated = v.evaluate({})
         assert_equal(3, len(evaluated['an_array']))
         assert_equal(2, len(evaluated['a_dict']))
@@ -80,23 +80,25 @@ class TestVarstackWithCrypto(object):
         assert_in('could not decrypt string', str(log))
 
 class TestVarstackVariableExtractor(object):
-    @log_capture(level=logging.WARN)
+    @log_capture(level=logging.DEBUG)
     def test_can_load_py_files_from_working_dir(self, log):
         v = Varstack(os.path.dirname(__file__)+"/../examples/varstack_with_extractors.yaml")
         v.evaluate({})
-        assert_in('successfully loaded "extract_from_id.py"', str(log))
-        assert_equal(v.variable_extractors, [os.path.dirname(__file__)+"/../examples/extract_from_id.py"])
+        assert_in('successfully loaded "extract_from_id"', str(log))
+        assert_in('extract_from_id', v.config['extractor_functions'])
 
     @log_capture(level=logging.ERROR)
     def test_can_load_py_files_with_absolute_path(self, log):
         v = Varstack(os.path.dirname(__file__)+"/../examples/varstack_with_extractors.yaml")
         v.evaluate({})
-        assert_in('no such file or directory "/etc/varstack/absolute_path_extractor.py"', str(log))
-        assert_equal(v.variable_extractors, [os.path.dirname(__file__)+"/../examples/extract_from_id.py"])
+        assert_in('Could not load extractor function from', str(log))
+        assert_not_in('absolute_path_extractor', v.config['extractor_functions'])
 
     @log_capture(level=logging.DEBUG)
     def test_extractor_function_is_called(self, log):
-        v = Varstack(os.path.dirname(__file__)+"/../examples/varstack_with_extractors.yaml")
-        evaluated = v.evaluate({'id': 'node1-extractortest1.varstack.example.com'})
-        assert_in('extracted the following variables', str(log))
-        assert_equal(self.evaluated['my_tld'], 'com')
+        v = Varstack(os.path.dirname(__file__)+"/../examples/varstack_with_extractors.yaml", {})
+        evaluated = v.evaluate({'id': 'some1-extractortest1.varstack.example.com'})
+        assert_equal(evaluated['my_tld'], 'com')
+
+        evaluated = v.evaluate({'id': 'some1-extractortest1.varstack.example.net'})
+        assert_in('tld/net.yaml" not found', str(log))

@@ -5,7 +5,7 @@ Varstack - A system to create stacked configuration structures
 
 __all__ = [ "Varstack" ]
 
-import logging, re, yaml, os
+import logging, re, yaml, os, sys
 from pprint import pprint
 
 try:
@@ -23,6 +23,8 @@ class Varstack:
         self.log.addHandler(NullHandler())
         self.data = {}
         self.config = config
+        self.config['extractors'] = []
+        self.config['extractor_functions'] = {}
         if not 'gnupghome' in self.config:
             if 'HOME' in os.environ:
                 self.config['gnupghome'] = os.environ['HOME']+'/.gnupg'
@@ -42,6 +44,8 @@ class Varstack:
             return {}
         self.config.update(yaml.safe_load(cfh))
         cfh.close()
+        self.__loadExtractorFunctions()
+        variables = self.__extractVariables(variables)
         for path in self.config['stack']:
             fullpaths = self.__substitutePathVariables(self.config['datadir']+'/'+path+'.yaml', variables)
             if not fullpaths:
@@ -57,6 +61,44 @@ class Varstack:
                 fh.close()
         rawdata = self.data
         return self.__cleanupData(rawdata)
+
+    """Extracts variables from other variables using custom functions, loaded from extractor modules."""
+    def __loadExtractorFunctions(self):
+        for filename_or_path in self.config['extractors']:
+            if not os.path.isabs(filename_or_path):
+                file_to_load = os.path.abspath(os.path.join(os.path.dirname(self.config_filename), '__modules__', filename_or_path))
+            else:
+                file_to_load = filename_or_path
+
+            module_name = os.path.basename(file_to_load)
+            try:
+                sys.path.insert(0, os.path.dirname(file_to_load))
+                module = __import__(module_name)
+                try:
+                    self.config['extractor_functions'][module_name] = module.extractVariables
+                except AttributeError, e:
+                    raise ImportError('no function named \'extractVariables\'')
+                else:
+                    self.log.debug('successfully loaded "{0}" with an extractor function'.format(module_name))
+            except ImportError, e:
+                self.log.error('Could not load extractor function from {0}: {1}'.format(file_to_load, e))
+            finally:
+                del sys.path[0]
+
+    """Extracts variables from other variables using custom functions, loaded from extractor modules."""
+    def __extractVariables(self, variables):
+        for function_name in sorted(self.config['extractor_functions'].keys()):
+            function = self.config['extractor_functions'][function_name]
+
+            self.log.debug('applying {0} to variables ({1} entries so far)'.format(function_name, len(variables)))
+            try:
+                variables = function(variables)
+            except Exception, e:
+                self.log.warn('Exception caught while running variable extractor {0}: {1}'.format(function_name, e))
+                import traceback
+                self.log.debug(traceback.format_exc().replace("\n"," \ "))
+
+        return variables
 
     """Replace variables in a path with their respective values."""
     def __substitutePathVariables(self, path, variables):
