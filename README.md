@@ -17,7 +17,7 @@ stack:
 
 The 'datadir' setting defines the base directory which is searched for the configuration files specified in the 'stack' setting. The 'stack' setting is a list of configuration file candidates that will be read in the order they are specified if they exist. If a file doesn't exist the evaluation will continue with the next candidate. The path names may contain any number of variables in the form '%{variable}' and the values for these variables can be specified when varstack is run to select the desired files. The parsing will start with an empty set of settings and the contents of each file in the list that exists will be merged into this set if settings until all candidates have been read at which point the finalized set of settings is returned.
 
-Note that if the type of a variable is a list then the path containing such a variable in its name will be duplicated for each value in the list. If for example the variable "tags" is a list [mysql, apache] then the evaluation of the path "tags/%{tags}" will result in two paths "tags/mysql.yaml" and "tags/apache.yaml". This feature can only be utilized using the python interface right now and not from the command line. 
+Note that if the type of a variable is a list then the path containing such a variable in its name will be duplicated for each value in the list. If for example the variable "tags" is a list [mysql, apache] then the evaluation of the path "tags/%{tags}" will result in two paths "tags/mysql.yaml" and "tags/apache.yaml". This feature can only be utilized using the python interface right now and not from the command line.
 
 The way the data from a new file is merged with the existing data can be controlled by specifying a combination mode. Right now this mode can either be 'merge' or 'replace'. When 'replace' is specified if Varstack encounters a hash or array/list variable the content from previous definitions of this variable is replaced with the content in the new file. This allows one to override variables from previous definitions.
 If the mode 'merge' is selected (the default) then content of hash or array/list variables is merged with previous definitions of this variable. This allows for extending previously defined data.
@@ -225,6 +225,47 @@ Packageinfo: [https://pythonhosted.org/python-gnupg/](https://pythonhosted.org/p
 Inside this encrypted value, dicts and lists can exist. This will be parsed through varstack, too.
 
 The default gnupgdir is '_$HOME/.gnupg_'. If you want to chose another path, put _gnupghome: PATH_TO_GNUPG_FOLDER_ inside your varstack.yaml config file
+
+## Manipulating variables with custom python modules
+When using variables to stack your data, it can be advantageous to manipulate and/or generate new variables on the fly. This can be done by providing custom python modules that implement a single function `extractVariables`.
+### Example
+Include at last one entry to an `extractors` list in your varstack.yaml:
+```
+---
+extractors:
+    - extract_from_id
+stack:
+    - defaults
+    - tld/%{_tld}
+```
+and put a python module (eg. a directory with at least the `__init__.py` file in it) in `__modules__` next to your your varstack.yaml file:
+
+(note that you can provide an absolute path to the python module as well).
+```
+example
+├── __modules__
+│   └── extract_from_id
+│       └── __init__.py
+├── stack
+│   ├── crypted.yaml
+│   ├── defaults.yaml
+│   ├── overwrites.yaml
+│   └── tld
+│       └── com.yaml
+└── varstack.yaml
+```
+The `extract_from_id` module used in this example does simple split a fqdn into its different domain zones:
+```python
+def extractVariables(variables):
+    if variables['id']:
+      variables['_tld'] = variables['id'].split('.')[-1]
+      variables['_sld'] = variables['id'].split('.')[-2]
+      variables['_host'] = variables['id'].split('.')[0]
+
+    return variables
+```
+The function will be passed the current variables dict and is expected to return the expanded dictionary.
+If you do have multiple expander functions, they will get applied in order sorted by their name. Although it is possible to not only increase but also decrease the number of variables this way, it is not recommended to do so.
 
 
 ## Running development tests
