@@ -78,3 +78,25 @@ class TestVarstackWithCrypto(object):
         assert_is_instance(logged_evaluated['secret_that_was_encrypted_with_another_key'], str)
         assert_in('BEGIN PGP MESSAGE', logged_evaluated['secret_that_was_encrypted_with_another_key'])
         assert_in('could not decrypt string', str(log))
+
+class TestVarstackVariableExtractor(object):
+    @log_capture(level=logging.WARN)
+    def test_can_load_py_files_from_working_dir(self, log):
+        v = Varstack(os.path.dirname(__file__)+"/../examples/varstack_with_extractors.yaml")
+        v.evaluate({})
+        assert_in('successfully loaded "extract_from_id.py"', str(log))
+        assert_equal(v.variable_extractors, [os.path.dirname(__file__)+"/../examples/extract_from_id.py"])
+
+    @log_capture(level=logging.ERROR)
+    def test_can_load_py_files_with_absolute_path(self, log):
+        v = Varstack(os.path.dirname(__file__)+"/../examples/varstack_with_extractors.yaml")
+        v.evaluate({})
+        assert_in('no such file or directory "/etc/varstack/absolute_path_extractor.py"', str(log))
+        assert_equal(v.variable_extractors, [os.path.dirname(__file__)+"/../examples/extract_from_id.py"])
+
+    @log_capture(level=logging.DEBUG)
+    def test_extractor_function_is_called(self, log):
+        v = Varstack(os.path.dirname(__file__)+"/../examples/varstack_with_extractors.yaml")
+        evaluated = v.evaluate({'id': 'node1-extractortest1.varstack.example.com'})
+        assert_in('extracted the following variables', str(log))
+        assert_equal(self.evaluated['my_tld'], 'com')
