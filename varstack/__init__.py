@@ -113,10 +113,10 @@ class Varstack:
     """Load a YAML files and merge it into the existing configuration."""
     def __loadFile(self, filehandle):
         data = yaml.safe_load(filehandle)
-        self.data = self.__mergeData(self.data, data, 'merge', '<root>')
+        self.data = self.__mergeData(self.data, data, filehandle.name, 'merge', '<root>')
 
     """Merge two configuration sets."""
-    def __mergeData(self, old, new, combine, keyname):
+    def __mergeData(self, old, new, filename, combine, keyname):
         new = self.__check_enc(new)
 
         if type(old) != type(new):
@@ -131,15 +131,15 @@ class Varstack:
                   self.log.error('unknown combine mode "{0}" for key {1}'.format(new['__combine'], keyname))
             if combine == 'replace':
                 self.log.debug('replacing dict {0}'.format(keyname))
-                return new
+                return self.__add_filename_for_debugging(new, filename)
             else:
                 self.log.debug('merging dict {0}'.format(keyname))
                 for key in new:
                     if key not in old:
                         self.log.debug('adding new key "{0}".'.format(keyname+'/'+key))
-                        old[key] = new[key]
+                        old[key] = self.__add_filename_for_debugging(new[key], filename)
                     else:
-                        old[key] = self.__mergeData(old[key], new[key], combine, keyname+'/'+key)
+                        old[key] = self.__add_filename_for_debugging(self.__mergeData(old[key], new[key], filename, combine, keyname+'/'+key), filename)
                 return old
         elif type(new) == list:
             if type(new[0]) == dict and '__combine' in new[0]:
@@ -150,12 +150,30 @@ class Varstack:
                     self.log.error('unknown combine mode "{0}" for key {1}'.format(new[0]['__combine'], keyname))
             if combine == 'replace':
                 self.log.debug('replacing list {0}'.format(keyname))
-                return new
+                return self.__add_filename_for_debugging(new, filename)
             else:
                 self.log.debug('merging list {0}'.format(keyname))
-                return old+new
+                return self.__add_filename_for_debugging(old+new, filename)
         else:
-            return new
+            return self.__add_filename_for_debugging(new, filename)
+
+    """
+    Add the filename that is currently being merged, if in debug mode.
+    The full filename will be stored in a key called '__varstack_filename'
+    if handling a dict. For lists a new (first if that matters) dict entry is added
+    with this key. For other data structures nothing is added.
+    """
+    def __add_filename_for_debugging(self, data, filename):
+        # hacky way to determine if debugging by looking at logger level
+        if not logging.getLevelName(self.log.getEffectiveLevel()) == 'DEBUG':
+            return data
+        if type(data) == dict:
+            data['__varstack_filename'] = filename
+            return data
+        elif type(data) == list:
+            return [{'__varstack_filename': filename}]+data
+        else:
+            return data
 
     """Check if value is encrypted"""
     def __check_enc(self, value):
