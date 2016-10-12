@@ -193,6 +193,21 @@ users:
 
 As you can see the 'users' hash was merged this time while now the 'repos' array/list only contains the entry from the node file.
 
+## Embedded http server
+You can start varstack without any variables set but the additional `--server` parameter. In this mode Varstack will be listening on _http://localhost:5050/_.
+This interface can be queried with optional http GET parameters to get a stacked yaml as a http response.
+Please note that this feature is intended to be run locally on a dev box only and should nerver be exposed to any actual network!
+
+### Example:
+Run Varstack
+```
+varstack --server --config ~/pillar/varstack.yaml
+```
+and query it:
+```
+curl 'http://localhost:5050/?fqdn=supersecure.example.com'
+```
+
 ## GPG encryption for stacked data
 You can also work with encrypted data. If a value is PGP encrypted, varstack can decrypt this value (given the private key is available) and the result is itself interpreted as YAML. This means that the encrypted data can be nested but also keep in mind that for any other structe than single-line strings / integers, a proper yaml must be constructed before encryption!
 
